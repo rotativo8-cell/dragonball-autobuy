@@ -67,6 +67,9 @@ async def check_page(page, path):
         for frame in await page.locator('iframe').all():
             if await frame.is_visible() and re.search(r'captcha|challenges.cloudflare.com', await frame.get_attribute('src') or '', re.I):
                 result['challenge'] = True
+        restricted = bool(re.search(r'access restricted|using browser developer tools is not permitted|please close the console to continue', visible, re.I))
+        if restricted:
+            raise CriticalError('Jump Ichiban: Access Restricted; navegador bloqueado por la tienda; detener sin bypass')
         if result['challenge'] or response is None or response.status != 200:
             raise CriticalError('Jump Ichiban: acceso bloqueado/HTTP inesperado; detener sin bypass')
         if urlparse(page.url).hostname != 'jumpichiban.com' or urlparse(page.url).path != urlparse(URL).path:

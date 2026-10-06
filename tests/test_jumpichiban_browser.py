@@ -71,3 +71,11 @@ class JumpDiagnosticTests(unittest.IsolatedAsyncioTestCase):
                 result = await diagnose()
                 browser.assert_not_called()
                 self.assertEqual(result['access'], 'ERROR')
+
+    async def test_access_restricted_even_with_http_200(self):
+        self.html = '<title>Dragon Ball</title><h2>Access Restricted</h2><p>For security reasons, using browser developer tools is not permitted on this site.</p>'
+        result = await check_page(self.page, self.path)
+        self.assertEqual(result['http'], '200')
+        self.assertEqual(result['access'], 'ERROR')
+        self.assertIn('Access Restricted', result['reason'])
+        self.assertEqual(self.requests, ['GET'])
