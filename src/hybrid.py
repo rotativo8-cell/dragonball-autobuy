@@ -1,5 +1,6 @@
 import logging
 from datetime import datetime, timezone
+from .stock_alerts import ninnin_stock_message
 from .shops.base import CriticalError, check_product, check_cart_preview
 
 
@@ -23,9 +24,9 @@ async def hybrid_cycle(config, state, telegram, shop, get_page, name):
                  shop=name, url=URL, checked_at=now())
     if stock != previous.get('stock'):
         entry['stock_changed_at'] = now()
-        if product.available:
+        if product.available and previous.get('stock') == 'OUT_OF_STOCK':
             entry['stock_event'] = {'at':entry['stock_changed_at'], 'shop':name, 'url':URL,
-                                    'price':str(product.price), 'currency':product.currency, 'name':product.name}
+                                    'price':str(product.price), 'currency':product.currency, 'name':product.name, 'previous_stock':'OUT_OF_STOCK'}
             entry['notification_pending'] = True
     state.set(name, entry)
     if not product.available:
@@ -34,7 +35,8 @@ async def hybrid_cycle(config, state, telegram, shop, get_page, name):
     logging.info('Nin-Nin HTTP: IN_STOCK | %s %s', product.price, product.currency)
     if entry.get('notification_pending'):
         event = entry['stock_event']
-        await telegram.send(f"Nin-Nin IN_STOCK: {product.name}\n{event['at']}\n{product.price} {product.currency}\n{URL}\nDRY_RUN=true, máximo 1 unidad.")
+        if event.get('previous_stock') == 'OUT_OF_STOCK':
+            await telegram.send(ninnin_stock_message(event, config.product_limit))
         entry['notification_pending'] = False
         state.set(name, entry)
     if entry['purchase_attempted'] or completed:

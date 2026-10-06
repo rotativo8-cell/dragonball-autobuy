@@ -126,7 +126,7 @@ En Codex Cloud usa el script de instalación guardado y `docker compose up -d --
 
 **Mientras no hay stock no se usa Playwright.** Python hace una petición HTTPS ordinaria con `requests` cada 45 segundos (mínimo configurable 30), sin reintentos automáticos. Se comprueban nombre, ID, oferta JSON-LD, disponibilidad, precio y moneda en el HTML. Una respuesta inesperada, un desafío o un error HTTP se tratan como error crítico; no hay fallback para sortear protecciones. Se conserva la validación TLS, con la CA oficial del entorno cuando está proporcionada. El User-Agent identifica este monitor; no hay spoofing, resolución de CAPTCHA ni bypass.
 
-Cada resultado se guarda en `data/state.json`. Si sigue `OUT_OF_STOCK`, solo se escribe un log, sin mensajes Telegram ni navegador. Al pasar a `IN_STOCK` (también si la primera observación ya tiene stock), el bot guarda fecha/hora ISO UTC, tienda, producto, URL, precio y moneda, y envía Telegram inmediatamente. No repite la misma notificación mientras continúe disponible.
+Cada resultado se guarda en `data/state.json`. Si sigue `OUT_OF_STOCK`, solo se escribe un log, sin mensajes Telegram ni navegador. Al pasar de `OUT_OF_STOCK` a `IN_STOCK`, el bot guarda fecha/hora ISO UTC, tienda, producto, URL, precio y moneda, y envía Telegram inmediatamente. No repite la misma notificación mientras continúe disponible.
 
 Antes de abrir el navegador se comprueba `MAX_PRODUCT_PRICE`, `MAX_TOTAL_PRICE` y la moneda. Los límites se expresan en `NINNIN_CURRENCY`, sin conversión; los valores de ejemplo 50/60/10 bloquean el precio observado de 94,39 EUR. `MAX_QUANTITY` está bloqueado a una unidad. Si un límite bloquea la acción, sigue la observación HTTP, sin abrir Chromium ni tocar el carrito.
 
@@ -184,3 +184,22 @@ python -m venv .venv
 Con el entorno virtual activado (`source .venv/bin/activate`), el comando es `python -m src.test_ninnin_browser`. Este comando nativo no lee `.env`; usa variables exportadas o valores seguros por defecto. Docker Compose sí carga `.env`.
 
 La salida incluye acceso, HTTP, título, producto, precio/moneda, stock, botón de carrito, protección y ruta de captura. Un 403 sin desafío se informa como acceso denegado, sin afirmar que sea CAPTCHA. Devuelve código de salida 0 si todo se detecta y captura correctamente, y 1 ante bloqueo, error de navegación, datos inesperados o fallo de captura. Una salida de error no reinicia ni desbloquea el monitor.
+
+## Prueba manual del aviso Telegram
+
+Desde la carpeta del proyecto, con las dependencias instaladas y `.env` rellenado:
+
+```bash
+python -m src.test_telegram_stock
+```
+
+En el contenedor, después de reconstruir la imagen:
+
+```bash
+docker compose build
+docker compose run --rm --no-deps monitor python -m src.test_telegram_stock
+```
+
+El comando nativo lee `.env`; las variables ya exportadas tienen prioridad. En Docker usa la configuración inyectada por Compose. Necesita `TELEGRAM_BOT_TOKEN` y `TELEGRAM_CHAT_ID`, incluso si `ALLOW_NO_TELEGRAM=true`. Envía un aviso claramente marcado **PRUEBA FICTICIA — NO ES STOCK REAL**, con un precio ficticio y la URL de Nin-Nin. No consulta la tienda, no abre el navegador, no toca el estado persistente y no simula compras. Rechaza `DRY_RUN=false`.
+
+En el monitor, el aviso `🚨 STOCK NIN-NIN` se envía únicamente al cambiar de `OUT_OF_STOCK` a `IN_STOCK`; arrancar sin estado previo con el producto ya disponible no envía este aviso. Incluye tienda, nombre, precio, moneda y URL completa bajo `🛒 COMPRAR AHORA`. Si supera `MAX_PRODUCT_PRICE`, el mismo evento envía `⚠️ STOCK DETECTADO PERO PRECIO SUPERIOR AL LÍMITE`, con precio, límite y enlace. No se repite mientras siga habiendo stock, incluso al reiniciar. Los avisos de bloqueo/error existentes son independientes. El texto «COMPRAR AHORA» solo ofrece el enlace para uso manual: el bot sigue en `DRY_RUN=true` y la lógica de carrito no cambia.

@@ -138,12 +138,13 @@ class HybridTests(unittest.IsolatedAsyncioTestCase):
         await self.poll()
         self.assertEqual(self.state.get('ninnin')['status'],'PLAYWRIGHT_BLOCKED')
         self.get_page.assert_awaited_once()
-        self.assertEqual(self.telegram.send.await_count,2)
+        self.assertEqual(self.telegram.send.await_count,1)
         self.shop.prepare_checkout.assert_not_called()
         self.assertTrue(self.state.get('ninnin')['purchase_attempted'])
         self.assertFalse(self.state.get('ninnin')['purchase_completed'])
 
     async def test_high_price_no_browser(self):
+        self.state.set('ninnin', {'stock':'OUT_OF_STOCK'})
         self.config = replace(self.config, product_limit=Decimal('50'))
         await self.poll()
         self.get_page.assert_not_called()
