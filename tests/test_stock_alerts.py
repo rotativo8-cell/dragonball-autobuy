@@ -41,6 +41,9 @@ class StockMessageTests(unittest.TestCase):
 
 class StockTransitionTests(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
+        email_patch = patch('src.hybrid.send_stock_email', new=AsyncMock(return_value='disabled'))
+        email_patch.start()
+        self.addCleanup(email_patch.stop)
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
         with patch.dict(os.environ,{},clear=True):

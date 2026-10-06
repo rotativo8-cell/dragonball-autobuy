@@ -203,3 +203,42 @@ docker compose run --rm --no-deps monitor python -m src.test_telegram_stock
 El comando nativo lee `.env`; las variables ya exportadas tienen prioridad. En Docker usa la configuración inyectada por Compose. Necesita `TELEGRAM_BOT_TOKEN` y `TELEGRAM_CHAT_ID`, incluso si `ALLOW_NO_TELEGRAM=true`. Envía un aviso claramente marcado **PRUEBA FICTICIA — NO ES STOCK REAL**, con un precio ficticio y la URL de Nin-Nin. No consulta la tienda, no abre el navegador, no toca el estado persistente y no simula compras. Rechaza `DRY_RUN=false`.
 
 En el monitor, el aviso `🚨 STOCK NIN-NIN` se envía únicamente al cambiar de `OUT_OF_STOCK` a `IN_STOCK`; arrancar sin estado previo con el producto ya disponible no envía este aviso. Incluye tienda, nombre, precio, moneda y URL completa bajo `🛒 COMPRAR AHORA`. Si supera `MAX_PRODUCT_PRICE`, el mismo evento envía `⚠️ STOCK DETECTADO PERO PRECIO SUPERIOR AL LÍMITE`, con precio, límite y enlace. No se repite mientras siga habiendo stock, incluso al reiniciar. Los avisos de bloqueo/error existentes son independientes. El texto «COMPRAR AHORA» solo ofrece el enlace para uso manual: el bot sigue en `DRY_RUN=true` y la lógica de carrito no cambia.
+
+## Avisos por email (SMTP con STARTTLS)
+
+Telegram y email se notifican una sola vez por transición `OUT_OF_STOCK` → `IN_STOCK`. Email está desactivado por defecto. Para activarlo añade a tu `.env` privado:
+
+```dotenv
+EMAIL_ENABLED=true
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USER=
+SMTP_PASSWORD=
+EMAIL_TO=
+```
+
+Rellena `SMTP_USER` con tu dirección de correo, `SMTP_PASSWORD` con una contraseña de aplicación de tu proveedor y `EMAIL_TO` con el destinatario. En Gmail normalmente necesitas verificación en dos pasos y una contraseña de aplicación; no uses tu contraseña habitual. Guarda esos valores solo en `.env`, nunca en Git ni en mensajes públicos. El remitente es `SMTP_USER`. SMTP requiere STARTTLS y verifica el certificado; si el servidor no lo admite, el envío falla sin quitar TLS. Para proveedores distintos cambia host y puerto (no se admite SMTP SSL implícito del puerto 465).
+
+El asunto normal es `🚨 STOCK NIN-NIN - Dragon Ball Visual Adventure Vol.2`; el cuerpo incluye tienda, nombre, precio, moneda y URL completa. Por encima de `MAX_PRODUCT_PRICE`, el asunto es `⚠️ STOCK NIN-NIN - PRECIO SUPERIOR AL LÍMITE` y también incluye precio, límite y enlace.
+
+Un fallo de email queda en los logs y en `email_status` del estado. **No detiene el monitor ni impide Telegram.** El intento se reserva en disco antes de enviar: no se reintenta automáticamente ese mismo evento ni se repite cada revisión o reinicio. Si activas email cuando el producto ya sigue `IN_STOCK`, no se manda un aviso retroactivo; espera una nueva transición. Como SMTP no proporciona una transacción compartida con el estado local, una caída durante el envío puede dejar entrega incierta; se prioriza evitar duplicados.
+
+Reconstruye y recrea después de actualizar el proyecto y `.env`:
+
+```bash
+docker compose up -d --build --force-recreate
+```
+
+Prueba manual dentro del contenedor:
+
+```bash
+docker compose run --rm --no-deps monitor python -m src.test_email
+```
+
+O, desde la carpeta del proyecto con el entorno virtual y las dependencias instaladas:
+
+```bash
+python -m src.test_email
+```
+
+El comando lee el `.env` real (las variables exportadas tienen prioridad), exige `EMAIL_ENABLED=true` y mantiene `DRY_RUN=true`. Envía un correo marcado **PRUEBA FICTICIA — NO ES STOCK REAL**, sin contactar Nin-Nin, tocar el estado, enviar Telegram ni simular una compra. No publiques capturas de las credenciales. No necesitas instalar dependencias SMTP adicionales: el módulo usa la biblioteca estándar de Python.

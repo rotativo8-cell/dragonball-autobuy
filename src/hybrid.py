@@ -1,5 +1,6 @@
 import logging
 from datetime import datetime, timezone
+from .email_notifier import send_stock_email
 from .stock_alerts import ninnin_stock_message
 from .shops.base import CriticalError, check_product, check_cart_preview
 
@@ -28,17 +29,31 @@ async def hybrid_cycle(config, state, telegram, shop, get_page, name):
             entry['stock_event'] = {'at':entry['stock_changed_at'], 'shop':name, 'url':URL,
                                     'price':str(product.price), 'currency':product.currency, 'name':product.name, 'previous_stock':'OUT_OF_STOCK'}
             entry['notification_pending'] = True
+            entry['email_notification_pending'] = True
     state.set(name, entry)
     if not product.available:
         logging.info('Nin-Nin HTTP: OUT_OF_STOCK | %s %s', product.price, product.currency)
         return
     logging.info('Nin-Nin HTTP: IN_STOCK | %s %s', product.price, product.currency)
-    if entry.get('notification_pending'):
-        event = entry['stock_event']
-        if event.get('previous_stock') == 'OUT_OF_STOCK':
-            await telegram.send(ninnin_stock_message(event, config.product_limit))
-        entry['notification_pending'] = False
-        state.set(name, entry)
+    try:
+        if entry.get('notification_pending'):
+            event = entry['stock_event']
+            if event.get('previous_stock') == 'OUT_OF_STOCK':
+                await telegram.send(ninnin_stock_message(event, config.product_limit))
+            entry['notification_pending'] = False
+            state.set(name, entry)
+    finally:
+        if entry.get('email_notification_pending'):
+            # Reservar antes de SMTP: no duplicar después de caída o resultado incierto.
+            entry['email_notification_pending'] = False
+            entry['email_status'] = 'attempting'
+            state.set(name, entry)
+            event = entry['stock_event']
+            if event.get('previous_stock') == 'OUT_OF_STOCK':
+                entry['email_status'] = await send_stock_email(event, config.product_limit)
+            else:
+                entry['email_status'] = 'skipped'
+            state.set(name, entry)
     if entry['purchase_attempted'] or completed:
         logging.info('Nin-Nin: intento ya registrado/completado; no repetir aunque vuelva el stock')
         return
