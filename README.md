@@ -242,3 +242,20 @@ python -m src.test_email
 ```
 
 El comando lee el `.env` real (las variables exportadas tienen prioridad), exige `EMAIL_ENABLED=true` y mantiene `DRY_RUN=true`. Envía un correo marcado **PRUEBA FICTICIA — NO ES STOCK REAL**, sin contactar Nin-Nin, tocar el estado, enviar Telegram ni simular una compra. No publiques capturas de las credenciales. No necesitas instalar dependencias SMTP adicionales: el módulo usa la biblioteca estándar de Python.
+
+### Diagnóstico Jump Ichiban (manual, solo lectura)
+
+Prueba el Vol.2 en una sesión aislada; muestra HTTP, producto, precio/moneda,
+stock o reserva, botón y CAPTCHA/Cloudflare. Guarda
+`screenshots/jumpichiban-browser-test.png`. Si falta información o hay señales
+contradictorias devuelve ERROR. No añade al carrito, no abre checkout, no envía
+avisos ni modifica el estado del monitor. No evade bloqueos ni reintenta.
+Este comando aún no incorpora Ichiban al monitor periódico.
+
+```bash
+docker compose run --rm --no-deps monitor python -m src.test_jumpichiban_browser
+```
+
+Mantén `DRY_RUN=true` y `MAX_QUANTITY=1`. Tras actualizar el código ejecuta
+`docker compose build monitor` antes de la prueba. También se puede ejecutar
+`python -m src.test_jumpichiban_browser` con las dependencias y Chromium instalados.
