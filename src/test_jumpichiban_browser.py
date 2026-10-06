@@ -22,9 +22,10 @@ NAME = 'Dragon Ball Visual Adventure Premium Set Vol.2'
 def parse_product(html):
     from bs4 import BeautifulSoup
     soup = BeautifulSoup(html, 'html.parser')
-    headings = soup.find_all('h1')
-    if len(headings) != 1 or not normalized(headings[0].get_text()).startswith(normalized(NAME)):
-        raise CriticalError('Jump Ichiban: identidad del producto desconocida')
+    headings = [h for h in soup.find_all('h1')
+                if normalized(h.get_text(' ', strip=True)).startswith(normalized(NAME))]
+    if len(headings) != 1:
+        raise CriticalError('Jump Ichiban: identidad del producto desconocida; H1=' + repr([h.get_text(' ', strip=True)[:180] for h in soup.find_all('h1')]))
     products = []
     for script in soup.select('script[type="application/ld+json"]'):
         with suppress(ValueError, TypeError):
@@ -70,7 +71,20 @@ async def check_page(page, path):
             raise CriticalError('Jump Ichiban: acceso bloqueado/HTTP inesperado; detener sin bypass')
         if urlparse(page.url).hostname != 'jumpichiban.com' or urlparse(page.url).path != urlparse(URL).path:
             raise CriticalError('Jump Ichiban: redirección inesperada')
-        name, price, stock = parse_product(await page.content())
+        # El tema anima el título con split-words después de DOMContentLoaded.
+        heading = page.locator('h1').filter(has_text=re.compile(r'Dragon\s+Ball.*Visual\s+Adventure', re.I))
+        await heading.first.wait_for(state='visible', timeout=10000)
+        # inner_text conserva espacios de los componentes animados del tema.
+        from bs4 import BeautifulSoup
+        soup = BeautifulSoup(await page.content(), 'html.parser')
+        product_headings = await heading.all()
+        for node in soup.find_all('h1'):
+            node.decompose()
+        for product_heading in product_headings:
+            node = soup.new_tag('h1')
+            node.string = await product_heading.inner_text()
+            soup.append(node)
+        name, price, stock = parse_product(str(soup))
         buttons = page.locator('form[action*="/cart/add"] button[name="add"]')
         enabled = []
         for button in await buttons.all():
