@@ -5,7 +5,10 @@ import requests
 from decimal import Decimal
 from bs4 import BeautifulSoup
 from .base import Shop, Product, CriticalError
-from .ninnin_http import USER_AGENT, MAX_HTML_BYTES
+from .ninnin_http import USER_AGENT
+
+# El HTML Shopify observado ocupa ~6.3 MB; límite exclusivo de esta tienda.
+MAX_HTML_BYTES = 10_000_000
 from ..test_jumpichiban_browser import URL, parse_product
 
 

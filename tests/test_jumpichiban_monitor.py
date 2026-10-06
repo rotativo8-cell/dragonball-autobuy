@@ -3,9 +3,9 @@ import unittest
 from pathlib import Path
 from types import SimpleNamespace
 from decimal import Decimal
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, patch, MagicMock
 from src.stock_only import stock_only_cycle
-from src.shops.jumpichiban import JumpIchibanShop, URL, inspect_html
+from src.shops.jumpichiban import JumpIchibanShop, URL, inspect_html, download_html, MAX_HTML_BYTES
 from src.shops.base import Product, CriticalError
 from src.state import State
 from src.email_notifier import stock_email
@@ -68,3 +68,22 @@ class JumpMonitorTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn('JUMP ICHIBAN',subject)
         self.assertIn('104.00 USD',body)
         self.assertNotIn('NIN-NIN',subject)
+
+
+class JumpDownloadTests(unittest.TestCase):
+    def response(self, chunks):
+        response = MagicMock()
+        response.status_code = 200
+        response.headers = {'Content-Type':'text/html'}
+        response.encoding = 'utf-8'
+        response.iter_content.return_value = iter(chunks)
+        response.__enter__.return_value = response
+        return response
+
+    def test_accepts_large_shopify_page(self):
+        with patch('src.shops.jumpichiban.requests.get', return_value=self.response([b'x'*6_400_000])):
+            self.assertEqual(len(download_html()),6_400_000)
+
+    def test_still_limits_response(self):
+        with patch('src.shops.jumpichiban.requests.get', return_value=self.response([b'x'*MAX_HTML_BYTES,b'x'])):
+            with self.assertRaises(CriticalError): download_html()
