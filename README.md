@@ -158,3 +158,29 @@ Validación real del 6 de octubre de 2026: **HTTP detecta OUT_OF_STOCK, 94,39 EU
 ## Subir esta versión al remoto
 
 Desde el equipo donde se creó el commit, ejecuta `git push -u origin work`. Después podrás usar el comando `git clone --branch work` indicado arriba en Ubuntu. El commit local por sí solo no publica los archivos en GitHub. No subas `.env`, cookies, estado ni capturas. Las credenciales Telegram se introducen únicamente en el `.env` privado de cada servidor.
+
+## Diagnóstico manual de navegador Nin-Nin (Ubuntu doméstico)
+
+Este comando **solo lee la página**: no añade al carrito, no abre checkout, no usa la sesión del monitor, no envía Telegram ni modifica su estado. Rechaza `DRY_RUN=false`; si no está definido, usa `true`. No intenta evadir 403, CAPTCHA ni Cloudflare y mantiene la validación HTTPS.
+
+Después de descargar esta versión, reconstruye la imagen y ejecuta:
+
+```bash
+docker compose build
+docker compose run --rm --no-deps monitor python -m src.test_ninnin_browser
+```
+
+Puede ejecutarse mientras el monitor está activo porque utiliza una sesión aislada. La imagen ya incluye Chromium y sus librerías del sistema; `COPY src ./src` incluye el comando automáticamente. La captura aparece en **`./screenshots/ninnin-browser-test.png`** en Ubuntu (dentro del contenedor: `/app/screenshots/ninnin-browser-test.png`). Cada prueba reemplaza esa captura. Si el navegador no puede arrancar, se indica que la captura no se guardó.
+
+Sin Docker, desde la carpeta del proyecto y con Python instalado:
+
+```bash
+python -m venv .venv
+.venv/bin/python -m pip install -r requirements.txt
+.venv/bin/python -m playwright install --with-deps chromium
+.venv/bin/python -m src.test_ninnin_browser
+```
+
+Con el entorno virtual activado (`source .venv/bin/activate`), el comando es `python -m src.test_ninnin_browser`. Este comando nativo no lee `.env`; usa variables exportadas o valores seguros por defecto. Docker Compose sí carga `.env`.
+
+La salida incluye acceso, HTTP, título, producto, precio/moneda, stock, botón de carrito, protección y ruta de captura. Un 403 sin desafío se informa como acceso denegado, sin afirmar que sea CAPTCHA. Devuelve código de salida 0 si todo se detecta y captura correctamente, y 1 ante bloqueo, error de navegación, datos inesperados o fallo de captura. Una salida de error no reinicia ni desbloquea el monitor.
