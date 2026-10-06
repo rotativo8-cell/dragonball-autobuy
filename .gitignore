@@ -1,0 +1,11 @@
+.env
+.env.*
+!.env.example
+.venv/
+__pycache__/
+*.pyc
+data/*
+!data/.gitkeep
+screenshots/*
+!screenshots/.gitkeep
+.browsers/
