@@ -11,6 +11,9 @@ from .config import boolean
 
 def stock_email(event, max_product_price):
     price = Decimal(event['price'])
+    if event.get('shop') == 'jumpichiban':
+        return ('🚨 STOCK JUMP ICHIBAN - Dragon Ball Visual Adventure Vol.2',
+                f"🚨 STOCK JUMP ICHIBAN\n\n{event['name']}\nPrecio: {price:.2f} {event['currency']}\n\nCOMPRAR AHORA:\n{event['url']}\n")
     expensive = price > max_product_price
     subject = ('⚠️ STOCK NIN-NIN - PRECIO SUPERIOR AL LÍMITE' if expensive
                else '🚨 STOCK NIN-NIN - Dragon Ball Visual Adventure Vol.2')

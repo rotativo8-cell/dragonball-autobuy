@@ -250,7 +250,7 @@ stock o reserva, botón y CAPTCHA/Cloudflare. Guarda
 `screenshots/jumpichiban-browser-test.png`. Si falta información o hay señales
 contradictorias devuelve ERROR. No añade al carrito, no abre checkout, no envía
 avisos ni modifica el estado del monitor. No evade bloqueos ni reintenta.
-Este comando aún no incorpora Ichiban al monitor periódico.
+El diagnóstico manual es independiente del monitor HTTP descrito abajo.
 
 ```bash
 docker compose run --rm --no-deps monitor python -m src.test_jumpichiban_browser
@@ -259,3 +259,25 @@ docker compose run --rm --no-deps monitor python -m src.test_jumpichiban_browser
 Mantén `DRY_RUN=true` y `MAX_QUANTITY=1`. Tras actualizar el código ejecuta
 `docker compose build monitor` antes de la prueba. También se puede ejecutar
 `python -m src.test_jumpichiban_browser` con las dependencias y Chromium instalados.
+
+
+### Monitor HTTP Jump Ichiban
+
+Configura `SHOP_MODULES=ninnin,jumpichiban` para observar ambas tiendas con
+el intervalo `CHECK_INTERVAL_SECONDS` existente (mínimo 30 segundos).
+Mantén `DRY_RUN=true` y `MAX_QUANTITY=1`. Ichiban solo lee el producto:
+no abre Chromium ni toca carrito/checkout. Un bloqueo HTTP detiene el monitor
+sin bypass. Avisa por Telegram y por SMTP si está habilitado, solo al pasar
+de agotado a disponible/reserva; la primera lectura fija el estado.
+El estado persiste al reiniciar. Se reserva cada aviso antes del envío, sin
+repetirlo tras un fallo o resultado incierto. Un fallo Telegram/SMTP de Ichiban
+no detiene las lecturas. Precio en la moneda publicada (USD), sin conversión
+ni comparación con los límites EUR de Nin-Nin.
+
+```bash
+git pull origin work
+# En .env: SHOP_MODULES=ninnin,jumpichiban
+docker compose build monitor
+docker compose up -d --force-recreate monitor
+docker compose logs --tail=40 monitor
+```

@@ -131,7 +131,10 @@ async def run(config, once=False):
                     while True:
                         started = time.monotonic()
                         for name, shop in shops:
-                            if getattr(shop, 'http_monitor', False):
+                            if getattr(shop, 'stock_only', False):
+                                from .stock_only import stock_only_cycle
+                                await asyncio.wait_for(stock_only_cycle(config, state, telegram, shop, name), timeout=120)
+                            elif getattr(shop, 'http_monitor', False):
                                 await asyncio.wait_for(hybrid_cycle(config, state, telegram, shop, browsers.get_page, name), timeout=120)
                                 await browsers.release()
                             else:
