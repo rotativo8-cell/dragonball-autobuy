@@ -166,10 +166,10 @@ class JumpPollingTests(unittest.IsolatedAsyncioTestCase):
                                  shops=('jumpichiban', 'ninnin'), interval=45)
         modules = [SimpleNamespace(create_shop=lambda: self.shop),
                    SimpleNamespace(create_shop=lambda: other)]
-        with patch('src.main.importlib.import_module', side_effect=modules), \
-             patch('src.main.Telegram', return_value=self.telegram), \
+        with patch('src.main.Telegram', return_value=self.telegram), \
              patch('src.hybrid.hybrid_cycle', new_callable=AsyncMock) as ninnin, \
-             patch('src.main.async_playwright') as browser:
+             patch('src.main.async_playwright') as browser, \
+             patch('src.main.importlib.import_module', side_effect=modules):
             await run(config, once=True)
         ninnin.assert_awaited_once()
         browser.assert_not_called()
