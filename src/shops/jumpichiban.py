@@ -10,6 +10,7 @@ from .ninnin_http import USER_AGENT
 # El HTML Shopify observado ocupa ~6.3 MB; límite exclusivo de esta tienda.
 MAX_HTML_BYTES = 10_000_000
 from ..test_jumpichiban_browser import URL, parse_product
+from ..polling import RateLimited, retry_after_seconds
 
 
 def download_html():
@@ -17,6 +18,8 @@ def download_html():
         with requests.get(URL, headers={'User-Agent':USER_AGENT, 'Accept':'text/html'},
                           timeout=(10,20), allow_redirects=False, stream=True,
                           verify=os.getenv('REQUESTS_CA_BUNDLE') or os.getenv('SSL_CERT_FILE') or True) as response:
+            if response.status_code == 429:
+                raise RateLimited(retry_after_seconds(response.headers.get('Retry-After')))
             if response.status_code != 200:
                 raise CriticalError(f'Jump Ichiban HTTP: HTTP {response.status_code}; detener sin bypass')
             if 'text/html' not in response.headers.get('Content-Type','').lower():
@@ -47,6 +50,7 @@ def inspect_html(html):
 class JumpIchibanShop(Shop):
     http_monitor = True
     stock_only = True
+    poll_interval_range = (180, 300)
     url = URL
 
     async def inspect_http(self):
