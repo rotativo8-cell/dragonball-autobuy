@@ -308,3 +308,56 @@ el estado y archiva el marcador. Programa una pausa de al menos 15 minutos
 desde la recuperación; nunca acorta una espera ya existente. Si no hay marcador
 no cambia nada; si hay otra parada, devuelve error y la conserva. No borres
 `data/state.json`: contiene stock, avisos y bloqueos de intentos.
+
+
+## Prueba manual específica de Jump Ichiban
+
+```bash
+docker compose run --rm --no-deps -e EMAIL_ENABLED=true -e EMAIL_TO=rotativo8@gmail.com monitor python -m src.test_jumpichiban_alerts
+```
+
+Envía Telegram y correo claramente marcados como prueba ficticia. Usa los mismos
+formatos que los avisos reales de Ichiban, USD y su URL. No consulta tiendas,
+no toca estado, navegador ni carrito. También admite `--channel telegram` o
+`--channel email`. Probar correo con una variable temporal no activa los avisos
+reales: en el `.env` del monitor debe figurar `EMAIL_ENABLED=true`.
+
+## Comprobación automática del servidor Ubuntu
+
+La herramienta local `ops/server_check.py` comprueba los dos montajes SMB
+configurados y todos los contenedores actuales (sin lista fija). Excluye los
+contenedores temporales `docker compose run`. Un contenedor detenido se informa
+como fallo aunque su parada sea intencionada; sin healthcheck solo se verifica
+que esté en ejecución. No reinicia ni repara servicios.
+
+Se instala desde `/opt/dragonball-autobuy`:
+
+```bash
+sudo bash ops/install_server_check.sh
+```
+
+Sustituye la versión anterior: revisión dos minutos después del arranque con un
+correo a rotativo8@gmail.com, y revisiones horarias sin correo. Reutiliza SMTP
+del servicio monitor a través de Compose, sin copiar credenciales ni ejecutar
+`.env` como shell. El envío se reserva por ID de arranque: no repite un correo
+tras un resultado incierto ni reintenta automáticamente un fallo de envío.
+Instalar pasados los dos minutos del arranque puede activar el primer resumen
+inmediatamente. La revisión exige NAS accesible, sin suponer que la mera carpeta
+o el automontaje sean suficientes.
+
+Registros de texto privados en `/var/log/comprobar-servidor/revision-*.log`,
+con fechas en Europe/Madrid, resumen y detalles comprensibles. Se borran al
+cumplir cinco días en una limpieza ligera cada minuto (puede haber un pequeño
+margen por ejecución/planificación o por servidor apagado). Esa limpieza no
+consulta NAS ni Docker ni envía correo. Las revisiones ya no escriben su detalle
+en el diario general; los metadatos de systemd y los registros antiguos mantienen
+la política global de Ubuntu. No se purgan logs de otros servicios.
+
+```bash
+sudo sh -c 'ls -t /var/log/comprobar-servidor/revision-*.log | head -1 | xargs cat'
+sudo /usr/local/sbin/comprobar-servidor
+systemctl list-timers 'comprobar-servidor*' --no-pager
+```
+
+La comprobación manual no manda correo. Las pruebas automáticas interceptan
+Docker, NAS y SMTP: no modifican el servidor ni envían mensajes reales.

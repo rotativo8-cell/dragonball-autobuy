@@ -1,10 +1,17 @@
 """Avisos persistentes HTTP, sin acciones de carrito."""
+from decimal import Decimal
 import logging
 import random
 import time
 from .polling import RateLimited
 from .hybrid import now
 from .email_notifier import send_stock_email
+
+
+def jumpichiban_stock_message(event):
+    return (f"🚨 STOCK JUMP ICHIBAN\n\n{event['name']}\n"
+            f"💰 {Decimal(event['price']):.2f} {event['currency']}\n\n"
+            f"🛒 COMPRAR AHORA:\n{event['url']}")
 
 
 async def stock_only_cycle(config, state, telegram, shop, name):
@@ -51,7 +58,7 @@ async def stock_only_cycle(config, state, telegram, shop, name):
     logging.info('Jump Ichiban HTTP: %s | %s %s',stock,product.price,product.currency)
     if not event:
         return
-    message = f'🚨 STOCK JUMP ICHIBAN\n\n{product.name}\n💰 {product.price:.2f} {product.currency}\n\n🛒 COMPRAR AHORA:\n{shop.url}'
+    message = jumpichiban_stock_message(entry)
     try:
         await telegram.send(message)
         entry['notification_status'] = 'sent'

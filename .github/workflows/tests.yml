@@ -1,7 +1,7 @@
 name: Python tests
 on:
   push:
-    branches: [work, codex/jumpichiban-backoff]
+    branches: [work, codex/jumpichiban-backoff, codex/server-check-alerts]
   pull_request:
 permissions:
   contents: read
@@ -16,4 +16,5 @@ jobs:
           python-version: '3.12'
       - run: python -m pip install -r requirements.txt
       - run: python -m playwright install --with-deps chromium
+      - run: bash -n ops/install_server_check.sh
       - run: python -m unittest discover -s tests -v
