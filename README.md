@@ -264,9 +264,20 @@ Mantén `DRY_RUN=true` y `MAX_QUANTITY=1`. Tras actualizar el código ejecuta
 ### Monitor HTTP Jump Ichiban
 
 Configura `SHOP_MODULES=ninnin,jumpichiban` para observar ambas tiendas con
-intervalos independientes: Nin-Nin mantiene `CHECK_INTERVAL_SECONDS` (mínimo 30\nsegundos); Jump Ichiban espera aleatoriamente 180–300 segundos tras cada lectura\nválida. La petición se realiza en el primer ciclo posterior al plazo, por lo que\npuede añadirse hasta un ciclo del intervalo general.
+intervalos independientes: Nin-Nin mantiene `CHECK_INTERVAL_SECONDS` (mínimo 30
+segundos); Jump Ichiban espera aleatoriamente 180–300 segundos tras cada lectura
+válida. La petición se realiza en el primer ciclo posterior al plazo, por lo que
+puede añadirse hasta un ciclo del intervalo general.
 Mantén `DRY_RUN=true` y `MAX_QUANTITY=1`. Ichiban solo lee el producto:
-no abre Chromium ni toca carrito/checkout. Un HTTP 429 pausa únicamente Ichiban:\n15 minutos, después 30 y después 60 mientras se repita (máximo de backoff:\n60 minutos). Si `Retry-After` pide más tiempo, se respeta, tanto en segundos\ncomo en fecha HTTP. Tras una lectura válida vuelve al intervalo normal. Los\nplazos y el backoff se guardan en `data/state.json` y sobreviven al reinicio,\nsin alterar el último stock ni crear avisos por un 429. No hay petición mientras\nel plazo esté pendiente, tampoco con `--once`. Nin-Nin y el heartbeat continúan.\nOtros errores HTTP, CAPTCHA o acceso bloqueado siguen provocando una parada\ncrítica sin bypass. Avisa por Telegram y por SMTP si está habilitado, solo al pasar
+no abre Chromium ni toca carrito/checkout. Un HTTP 429 pausa únicamente Ichiban:
+15 minutos, después 30 y después 60 mientras se repita (máximo de backoff:
+60 minutos). Si `Retry-After` pide más tiempo, se respeta, tanto en segundos
+como en fecha HTTP. Tras una lectura válida vuelve al intervalo normal. Los
+plazos y el backoff se guardan en `data/state.json` y sobreviven al reinicio,
+sin alterar el último stock ni crear avisos por un 429. No hay petición mientras
+el plazo esté pendiente, tampoco con `--once`. Nin-Nin y el heartbeat continúan.
+Otros errores HTTP, CAPTCHA o acceso bloqueado siguen provocando una parada
+crítica sin bypass. Avisa por Telegram y por SMTP si está habilitado, solo al pasar
 de agotado a disponible/reserva; la primera lectura fija el estado.
 El estado persiste al reiniciar. Se reserva cada aviso antes del envío, sin
 repetirlo tras un fallo o resultado incierto. Un fallo Telegram/SMTP de Ichiban
@@ -286,6 +297,14 @@ docker compose logs --tail=40 monitor
 El cambio no retira automáticamente una parada crítica existente. Con el
 servicio detenido, verifica que `data/critical.json` corresponde exactamente a
 `Jump Ichiban HTTP: HTTP 429; detener sin bypass`. En ese único caso puedes
-archivar el marcador y reanudar tras al menos 15 minutos desde la última
-petición. No borres `data/state.json`; conserva stock, avisos y bloqueos de
-intentos. Para otras paradas, revisa la causa antes de reanudar.
+usar el siguiente comando después de reconstruir la imagen y antes de arrancar:
+
+```bash
+docker compose run --rm --no-deps monitor python -m src.resume_jumpichiban
+```
+
+El comando verifica el mensaje exacto y que no haya un monitor activo, conserva
+el estado y archiva el marcador. Programa una pausa de al menos 15 minutos
+desde la recuperación; nunca acorta una espera ya existente. Si no hay marcador
+no cambia nada; si hay otra parada, devuelve error y la conserva. No borres
+`data/state.json`: contiene stock, avisos y bloqueos de intentos.
