@@ -166,7 +166,8 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--once', action='store_true', help='Ejecutar un ciclo para diagnóstico')
     args = parser.parse_args()
-    logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s %(message)s')
+    from .monitor_logging import configure_logging
+    configure_logging()
     try:
         config = Config.load()
         asyncio.run(run(config, args.once))

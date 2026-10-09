@@ -377,8 +377,18 @@ Compose fija `MONITOR_ONLY=true`: Nin-Nin conserva lecturas y avisos, pero no
 abre navegador ni carrito. DRY_RUN, módulos y límites se mantienen.
 Los avisos Telegram de Nin-Nin se reservan antes del envío: un resultado
 incierto no se reintenta, para evitar duplicados.
-Los logs incluyen fallo, plazo, agotamiento y recuperación; el estado privado
-conserva el resultado del aviso. La rotación de 3 × 10 MB limita espacio,
-no garantiza una retención temporal de 24 horas. `docker compose logs --since
-24h monitor` permite revisar lo que siga retenido; recrear elimina el histórico
-del contenedor anterior, por lo que debe guardarse antes fuera de Git.
+Los logs incluyen fallo, plazo, agotamiento, recuperación y resultados de avisos.
+Compose guarda una copia independiente de Docker en
+`/home/cristian/.local/state/dragonball-monitor` (configurable mediante
+`MONITOR_LOG_HOST_DIR`), fuera del repositorio y de `/tmp`. Directorio 0700 y
+archivos 0600, legibles por el propietario del directorio del host.
+`monitor-AAAA-MM-DD.log` usa días UTC y conserva el día actual y los tres
+anteriores completos: al menos 72 horas durante funcionamiento normal, sin
+truncar por tamaño. En la primera escritura de cada día y al arrancar, elimina
+solo archivos propios `monitor-*.log` y `history-*.log` anteriores al plazo.
+No elimina archivos ajenos. Durante una parada no se generan archivos nuevos;
+la limpieza se reanuda en la siguiente escritura. Los históricos importados se
+guardan como `history-AAAA-MM-DD.log` y siguen la misma política. El montaje
+conserva los logs al recrear el monitor; Docker mantiene además su rotación
+limitada por tamaño. Vigila el espacio libre: ningún archivo local puede
+garantizar retención frente a disco lleno o eliminación externa.
