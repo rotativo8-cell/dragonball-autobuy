@@ -4,6 +4,7 @@ services:
     init: true
     env_file: .env
     environment:
+      MONITOR_ONLY: "true"
       DATA_DIR: /app/data
       SCREENSHOT_DIR: /app/screenshots
     volumes:

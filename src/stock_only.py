@@ -15,6 +15,9 @@ def jumpichiban_stock_message(event):
 
 
 async def stock_only_cycle(config, state, telegram, shop, name):
+    from .polling import ServiceUnavailable, service_paused, record_503, recovered_503
+    if service_paused(state, name):
+        return
     previous = state.get(name) or {}
     interval_range = getattr(shop, 'poll_interval_range', None)
     if interval_range is not None:
@@ -26,6 +29,9 @@ async def stock_only_cycle(config, state, telegram, shop, name):
         state.set(name, reserved)
     try:
         product = await shop.inspect_http()
+    except ServiceUnavailable as error:
+        record_503(state, name, error)
+        return
     except RateLimited as error:
         if interval_range is None:
             raise
@@ -38,6 +44,8 @@ async def stock_only_cycle(config, state, telegram, shop, name):
         logging.warning('%s HTTP 429: pausa de %ss; sin bypass; otras tiendas continúan',
                         name, delay)
         return
+    recovered_503(state, name)
+    previous = state.get(name) or {}
     stock = 'IN_STOCK' if product.available else 'OUT_OF_STOCK'
     entry = dict(previous)
     if interval_range is not None:
@@ -68,3 +76,4 @@ async def stock_only_cycle(config, state, telegram, shop, name):
     # Sin comparar USD con los límites EUR de Nin-Nin.
     entry['email_status'] = await send_stock_email(entry['stock_event'], product.price)
     state.set(name,entry)
+    logging.info('%s aviso evento=%s Telegram=%s email=%s', name, entry['stock_changed_at'], entry.get('notification_status'), entry.get('email_status'))

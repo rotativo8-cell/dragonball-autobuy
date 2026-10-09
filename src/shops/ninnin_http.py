@@ -68,12 +68,15 @@ def parse_html(html):
 
 
 def download_html():
+    from ..polling import ServiceUnavailable, retry_after_seconds
     from .ninnin import URL
     # Usar las CAs provistas por el entorno cuando existen. Nunca verify=False.
     verify = os.getenv('REQUESTS_CA_BUNDLE') or os.getenv('SSL_CERT_FILE') or True
     try:
         with requests.get(URL, headers={'User-Agent':USER_AGENT, 'Accept':'text/html'},
                           timeout=(10, 20), allow_redirects=False, stream=True, verify=verify) as response:
+            if response.status_code == 503:
+                raise ServiceUnavailable(retry_after_seconds(response.headers.get('Retry-After')))
             if response.status_code != 200:
                 raise CriticalError(f'Nin-Nin HTTP: HTTP {response.status_code}; detener sin reintentos ni bypass')
             if 'text/html' not in response.headers.get('Content-Type', '').lower():

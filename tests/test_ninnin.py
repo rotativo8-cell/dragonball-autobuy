@@ -5,12 +5,11 @@ import unittest
 from dataclasses import replace
 from decimal import Decimal
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 from playwright.async_api import async_playwright
 from src.config import Config
 from src.main import cycle
 from src.state import State
-from src.telegram import Telegram
 from src.shops.base import CriticalError, CartPreview
 from src.shops.ninnin import NinNinShop, NAME, URL, CART_URL, amount
 
@@ -29,8 +28,12 @@ class NinNinTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.directory = Path(self.temp.name)
-        self.environment = patch.dict(os.environ, {'DRY_RUN':'true', 'NINNIN_CURRENCY':'EUR', 'SCREENSHOT_DIR':str(self.directory)})
+        test_environment = {key: os.environ[key] for key in ('PATH', 'HOME', 'PLAYWRIGHT_BROWSERS_PATH') if key in os.environ}
+        test_environment.update(DRY_RUN='true', NINNIN_CURRENCY='EUR', SCREENSHOT_DIR=str(self.directory))
+        self.environment = patch.dict(os.environ, test_environment, clear=True)
         self.environment.start()
+        self.addCleanup(self.environment.stop)
+        self.telegram = AsyncMock()
         self.config = replace(Config.load(), product_limit=Decimal('100'), total_limit=Decimal('110'), allow_no_telegram=True)
         self.playwright = await async_playwright().start()
         self.browser = await self.playwright.chromium.launch(headless=True)
@@ -49,8 +52,14 @@ class NinNinTests(unittest.IsolatedAsyncioTestCase):
     async def asyncTearDown(self):
         await self.browser.close()
         await self.playwright.stop()
-        self.environment.stop()
         self.temp.cleanup()
+
+    async def test_notification_credentials_are_isolated(self):
+        self.assertEqual(self.config.token, "")
+        self.assertEqual(self.config.chat, "")
+        self.assertNotIn("EMAIL_ENABLED", os.environ)
+        self.assertNotIn("SMTP_PASSWORD", os.environ)
+        self.assertIsInstance(self.telegram, AsyncMock)
 
     async def test_real_html_out_of_stock(self):
         product = await self.shop.inspect(self.page)
@@ -62,11 +71,11 @@ class NinNinTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_out_of_stock_no_cart_and_transition_screenshot(self):
         state = State(self.directory)
-        await cycle(self.config, state, Telegram(self.config), self.shop, self.page, 'ninnin')
+        await cycle(self.config, state, self.telegram, self.shop, self.page, 'ninnin')
         self.assertEqual(state.get('ninnin')['stock'], 'OUT_OF_STOCK')
         self.assertEqual(self.requests, [URL])
         self.assertEqual(len(list(self.directory.glob('*out_of_stock*.png'))), 1)
-        await cycle(self.config, state, Telegram(self.config), self.shop, self.page, 'ninnin')
+        await cycle(self.config, state, self.telegram, self.shop, self.page, 'ninnin')
         self.assertEqual(len(list(self.directory.glob('*out_of_stock*.png'))), 1)
 
     async def test_in_stock_button_and_structured_price(self):
@@ -197,9 +206,10 @@ class NinNinTests(unittest.IsolatedAsyncioTestCase):
                 return CartPreview(1, Decimal('94.39'), None, 'EUR')
         shop = PreviewShop()
         state = State(self.directory)
-        await cycle(self.config, state, Telegram(self.config), shop, None, 'ninnin')
-        await cycle(self.config, State(self.directory), Telegram(self.config), shop, None, 'ninnin')
+        await cycle(self.config, state, self.telegram, shop, None, 'ninnin')
+        await cycle(self.config, State(self.directory), self.telegram, shop, None, 'ninnin')
         self.assertEqual(shop.calls, 1)
+        self.telegram.send.assert_awaited_once()
         self.assertEqual(state.get('ninnin')['status'], 'completed')
         self.assertIsNone(state.get('ninnin')['subtotal'])
         self.assertNotIn('total', state.get('ninnin'))

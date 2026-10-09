@@ -1,4 +1,5 @@
 import logging
+import os
 from datetime import datetime, timezone
 from .email_notifier import send_stock_email
 from .stock_alerts import ninnin_stock_message
@@ -11,7 +12,15 @@ def now():
 
 async def hybrid_cycle(config, state, telegram, shop, get_page, name):
     from .shops.ninnin import URL, PlaywrightBlocked
-    product = await shop.inspect_http()
+    from .polling import ServiceUnavailable, service_paused, record_503, recovered_503
+    if service_paused(state, name):
+        return
+    try:
+        product = await shop.inspect_http()
+    except ServiceUnavailable as error:
+        record_503(state, name, error)
+        return
+    recovered_503(state, name)
     previous = state.get(name) or {}
     entry = dict(previous)
     # Migración conservadora de los eventos guardados antes de la arquitectura híbrida.
@@ -37,9 +46,17 @@ async def hybrid_cycle(config, state, telegram, shop, get_page, name):
     logging.info('Nin-Nin HTTP: IN_STOCK | %s %s', product.price, product.currency)
     try:
         if entry.get('notification_pending'):
+            entry['notification_pending'] = False
+            entry['notification_status'] = 'attempting'
+            state.set(name, entry)
             event = entry['stock_event']
             if event.get('previous_stock') == 'OUT_OF_STOCK':
-                await telegram.send(ninnin_stock_message(event, config.product_limit))
+                try:
+                    await telegram.send(ninnin_stock_message(event, config.product_limit))
+                    entry['notification_status'] = 'sent'
+                except Exception:
+                    entry['notification_status'] = 'failed'
+                    logging.error('Nin-Nin: fallo de aviso Telegram; el monitor continúa')
             entry['notification_pending'] = False
             state.set(name, entry)
     finally:
@@ -54,6 +71,11 @@ async def hybrid_cycle(config, state, telegram, shop, get_page, name):
             else:
                 entry['email_status'] = 'skipped'
             state.set(name, entry)
+    if entry.get('stock_changed_at') != previous.get('stock_changed_at') and product.available and previous.get('stock') == 'OUT_OF_STOCK':
+        logging.info('%s aviso evento=%s Telegram=%s email=%s', name, entry['stock_changed_at'], entry.get('notification_status'), entry.get('email_status'))
+    if os.getenv('MONITOR_ONLY', 'false').lower() == 'true':
+        logging.info('Nin-Nin: MONITOR_ONLY; lectura y avisos sin carrito')
+        return
     if entry['purchase_attempted'] or completed:
         logging.info('Nin-Nin: intento ya registrado/completado; no repetir aunque vuelva el stock')
         return

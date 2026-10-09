@@ -361,3 +361,24 @@ systemctl list-timers 'comprobar-servidor*' --no-pager
 
 La comprobación manual no manda correo. Las pruebas automáticas interceptan
 Docker, NAS y SMTP: no modifican el servidor ni envían mensajes reales.
+
+
+### Recuperación de HTTP 503
+
+Ambos módulos conservan el último stock y sus avisos ante HTTP 503. Esperan
+5, 10 y 20 minutos antes de los tres reintentos; respetan `Retry-After` si es
+mayor. Los plazos sobreviven al reinicio. Tras una lectura válida se registra
+la recuperación y se vuelve al intervalo normal. Un cuarto 503 suspende solo
+esa tienda hasta revisión manual; la otra y el heartbeat continúan. Revisar
+la causa antes de retirar únicamente los campos `http_503_*` de esa tienda,
+con el monitor detenido. No borrar stock, eventos ni bloqueos de intentos.
+403, protecciones, HTML inesperado y errores TLS siguen siendo críticos.
+Compose fija `MONITOR_ONLY=true`: Nin-Nin conserva lecturas y avisos, pero no
+abre navegador ni carrito. DRY_RUN, módulos y límites se mantienen.
+Los avisos Telegram de Nin-Nin se reservan antes del envío: un resultado
+incierto no se reintenta, para evitar duplicados.
+Los logs incluyen fallo, plazo, agotamiento y recuperación; el estado privado
+conserva el resultado del aviso. La rotación de 3 × 10 MB limita espacio,
+no garantiza una retención temporal de 24 horas. `docker compose logs --since
+24h monitor` permite revisar lo que siga retenido; recrear elimina el histórico
+del contenedor anterior, por lo que debe guardarse antes fuera de Git.
