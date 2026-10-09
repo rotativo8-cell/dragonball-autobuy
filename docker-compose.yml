@@ -4,9 +4,12 @@ services:
     init: true
     env_file: .env
     environment:
+      MONITOR_ONLY: "true"
+      MONITOR_LOG_DIR: /app/logs
       DATA_DIR: /app/data
       SCREENSHOT_DIR: /app/screenshots
     volumes:
+      - ${MONITOR_LOG_HOST_DIR:-/home/cristian/.local/state/dragonball-monitor}:/app/logs
       - ./data:/app/data
       - ./screenshots:/app/screenshots
     shm_size: 1gb

@@ -361,3 +361,34 @@ systemctl list-timers 'comprobar-servidor*' --no-pager
 
 La comprobación manual no manda correo. Las pruebas automáticas interceptan
 Docker, NAS y SMTP: no modifican el servidor ni envían mensajes reales.
+
+
+### Recuperación de HTTP 503
+
+Ambos módulos conservan el último stock y sus avisos ante HTTP 503. Esperan
+5, 10 y 20 minutos antes de los tres reintentos; respetan `Retry-After` si es
+mayor. Los plazos sobreviven al reinicio. Tras una lectura válida se registra
+la recuperación y se vuelve al intervalo normal. Un cuarto 503 suspende solo
+esa tienda hasta revisión manual; la otra y el heartbeat continúan. Revisar
+la causa antes de retirar únicamente los campos `http_503_*` de esa tienda,
+con el monitor detenido. No borrar stock, eventos ni bloqueos de intentos.
+403, protecciones, HTML inesperado y errores TLS siguen siendo críticos.
+Compose fija `MONITOR_ONLY=true`: Nin-Nin conserva lecturas y avisos, pero no
+abre navegador ni carrito. DRY_RUN, módulos y límites se mantienen.
+Los avisos Telegram de Nin-Nin se reservan antes del envío: un resultado
+incierto no se reintenta, para evitar duplicados.
+Los logs incluyen fallo, plazo, agotamiento, recuperación y resultados de avisos.
+Compose guarda una copia independiente de Docker en
+`/home/cristian/.local/state/dragonball-monitor` (configurable mediante
+`MONITOR_LOG_HOST_DIR`), fuera del repositorio y de `/tmp`. Directorio 0700 y
+archivos 0600, legibles por el propietario del directorio del host.
+`monitor-AAAA-MM-DD.log` usa días UTC y conserva el día actual y los tres
+anteriores completos: al menos 72 horas durante funcionamiento normal, sin
+truncar por tamaño. En la primera escritura de cada día y al arrancar, elimina
+solo archivos propios `monitor-*.log` y `history-*.log` anteriores al plazo.
+No elimina archivos ajenos. Durante una parada no se generan archivos nuevos;
+la limpieza se reanuda en la siguiente escritura. Los históricos importados se
+guardan como `history-AAAA-MM-DD.log` y siguen la misma política. El montaje
+conserva los logs al recrear el monitor; Docker mantiene además su rotación
+limitada por tamaño. Vigila el espacio libre: ningún archivo local puede
+garantizar retención frente a disco lleno o eliminación externa.

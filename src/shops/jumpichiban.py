@@ -14,12 +14,15 @@ from ..polling import RateLimited, retry_after_seconds
 
 
 def download_html():
+    from ..polling import ServiceUnavailable, retry_after_seconds
     try:
         with requests.get(URL, headers={'User-Agent':USER_AGENT, 'Accept':'text/html'},
                           timeout=(10,20), allow_redirects=False, stream=True,
                           verify=os.getenv('REQUESTS_CA_BUNDLE') or os.getenv('SSL_CERT_FILE') or True) as response:
             if response.status_code == 429:
                 raise RateLimited(retry_after_seconds(response.headers.get('Retry-After')))
+            if response.status_code == 503:
+                raise ServiceUnavailable(retry_after_seconds(response.headers.get('Retry-After')))
             if response.status_code != 200:
                 raise CriticalError(f'Jump Ichiban HTTP: HTTP {response.status_code}; detener sin bypass')
             if 'text/html' not in response.headers.get('Content-Type','').lower():
