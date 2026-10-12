@@ -12,7 +12,7 @@ def now():
 
 async def hybrid_cycle(config, state, telegram, shop, get_page, name):
     from .shops.ninnin import URL, PlaywrightBlocked
-    from .polling import ServiceUnavailable, service_paused, record_503, recovered_503
+    from .polling import ServiceUnavailable, NetworkUnavailable, service_paused, record_503, recovered_503, record_network_error, recovered_network
     if service_paused(state, name):
         return
     try:
@@ -20,7 +20,11 @@ async def hybrid_cycle(config, state, telegram, shop, get_page, name):
     except ServiceUnavailable as error:
         record_503(state, name, error)
         return
+    except NetworkUnavailable as error:
+        record_network_error(state, name, error)
+        return
     recovered_503(state, name)
+    recovered_network(state, name)
     previous = state.get(name) or {}
     entry = dict(previous)
     # Migración conservadora de los eventos guardados antes de la arquitectura híbrida.

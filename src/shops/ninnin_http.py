@@ -88,8 +88,13 @@ def download_html():
                     raise CriticalError('Nin-Nin HTTP: respuesta demasiado grande')
                 chunks.append(chunk)
             return b''.join(chunks).decode(response.encoding or 'utf-8', errors='strict')
-    except requests.RequestException:
-        raise CriticalError('Nin-Nin HTTP: error de conexión/TLS; no se cambia la validación ni se reintenta') from None
+    except requests.exceptions.SSLError:
+        raise CriticalError('Nin-Nin HTTP: validación/conexión TLS fallida (SSLError); detener sin cambiar validación ni reintentar') from None
+    except (requests.Timeout, requests.ConnectionError) as error:
+        from ..polling import NetworkUnavailable
+        raise NetworkUnavailable(type(error).__name__) from None
+    except requests.RequestException as error:
+        raise CriticalError(f'Nin-Nin HTTP: fallo HTTP ({type(error).__name__}); detener sin bypass') from None
     except UnicodeError:
         raise CriticalError('Nin-Nin HTTP: codificación de HTML inválida') from None
 

@@ -1,5 +1,9 @@
 # dragonball-autobuy
 
+### Cortes de red y errores TLS
+
+Nin-Nin distingue los timeouts/cortes de transporte de los errores TLS. Un timeout o conexión interrumpida pausa solo esa tienda, con hasta tres intentos diferidos a 5, 10 y 20 minutos; si sigue fallando, suspende esa tienda para revisión manual. Las demás continúan y se conserva el último stock, las notificaciones y los bloqueos de intentos. No hay reintentos inmediatos ni se registra un HTTP 503 ficticio. Un `SSLError`, certificado inválido, acceso denegado o HTML inesperado sigue provocando la parada crítica original: nunca se desactiva la validación TLS ni se utiliza un navegador para evadirla.
+
 Monitor Python + Chromium para Ubuntu Server con Docker Compose. **Esta versión no compra:** solo acepta `DRY_RUN=true`. No contiene ninguna acción de confirmar o pagar.
 
 ## Qué funciona ahora

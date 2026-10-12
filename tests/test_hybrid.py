@@ -61,8 +61,9 @@ class HttpParserTests(unittest.TestCase):
             self.assertEqual(parse_html(download_html()).price, Decimal('94.39'))
 
     def test_network_error(self):
+        from src.polling import NetworkUnavailable
         with patch('src.shops.ninnin_http.requests.get', side_effect=requests.ConnectionError):
-            with self.assertRaises(CriticalError):
+            with self.assertRaises(NetworkUnavailable):
                 download_html()
 
     def test_minimum_interval_and_quantity(self):

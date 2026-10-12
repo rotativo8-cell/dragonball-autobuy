@@ -15,7 +15,7 @@ def jumpichiban_stock_message(event):
 
 
 async def stock_only_cycle(config, state, telegram, shop, name):
-    from .polling import ServiceUnavailable, service_paused, record_503, recovered_503
+    from .polling import ServiceUnavailable, NetworkUnavailable, service_paused, record_503, recovered_503, record_network_error, recovered_network
     if service_paused(state, name):
         return
     previous = state.get(name) or {}
@@ -32,6 +32,9 @@ async def stock_only_cycle(config, state, telegram, shop, name):
     except ServiceUnavailable as error:
         record_503(state, name, error)
         return
+    except NetworkUnavailable as error:
+        record_network_error(state, name, error)
+        return
     except RateLimited as error:
         if interval_range is None:
             raise
@@ -45,6 +48,7 @@ async def stock_only_cycle(config, state, telegram, shop, name):
                         name, delay)
         return
     recovered_503(state, name)
+    recovered_network(state, name)
     previous = state.get(name) or {}
     stock = 'IN_STOCK' if product.available else 'OUT_OF_STOCK'
     entry = dict(previous)

@@ -34,9 +34,40 @@ class ServiceUnavailable(Exception):
         self.retry_after = retry_after
 
 
+class NetworkUnavailable(Exception):
+    """Corte/timeout de transporte; no incluye errores de validación TLS."""
+    def __init__(self, kind):
+        super().__init__(f'Conectividad temporal ({kind})')
+        self.kind = kind
+
+
+def record_network_error(state, name, error):
+    import logging
+    entry = dict(state.get(name) or {})
+    count = entry.get('network_error_count', 0) + 1
+    delay = 300 * 2 ** min(count - 1, 2)
+    entry.update(network_error_count=count, network_next_at=time.time() + delay,
+                 network_suspended=count > 3, network_error_kind=error.kind)
+    state.set(name, entry)
+    if count > 3:
+        logging.error('%s: conectividad sin recuperar; tienda suspendida; otras tiendas continúan; revisión manual necesaria', name)
+    else:
+        logging.warning('%s: %s; pausa de %ss; intento diferido %s/3; otras tiendas continúan', name, error, delay, count)
+
+
+def recovered_network(state, name):
+    import logging
+    entry = dict(state.get(name) or {})
+    if entry.get('network_error_count'):
+        logging.info('%s: conectividad recuperada tras %s fallos', name, entry['network_error_count'])
+        entry.update(network_error_count=0, network_next_at=0, network_suspended=False, network_error_kind=None)
+        state.set(name, entry)
+
+
 def service_paused(state, name):
     entry = state.get(name) or {}
-    return entry.get('http_503_suspended', False) or time.time() < entry.get('http_503_next_at', 0)
+    return (entry.get('http_503_suspended', False) or time.time() < entry.get('http_503_next_at', 0)
+            or entry.get('network_suspended', False) or time.time() < entry.get('network_next_at', 0))
 
 
 def record_503(state, name, error):
