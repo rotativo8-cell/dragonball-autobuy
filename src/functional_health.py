@@ -36,8 +36,8 @@ def inspect_shops(values, names, *, now=None, started_at=0, stale_after=900):
             continue
         deadlines = [entry.get(k, 0) for k in ('next_check_at', 'network_next_at', 'http_503_next_at')]
         deadline = max([last + stale_after] + [d + 90 for d in deadlines if number(d)])
-        # A legitimate backoff is not a suspension, but never hide days of no data.
-        if now > min(deadline, last + 86400):
+        # Respect the pause without presenting hours of unverified stock as healthy.
+        if now > min(deadline, last + max(stale_after, 3600)):
             results[name] = 'stale'
         elif any(number(d) and d > now for d in deadlines):
             results[name] = 'waiting'
