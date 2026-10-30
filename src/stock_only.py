@@ -6,6 +6,7 @@ import time
 from .polling import RateLimited
 from .hybrid import now
 from .email_notifier import send_stock_email
+from .notification_delivery import deliver_stock
 
 
 def jumpichiban_stock_message(event):
@@ -16,6 +17,9 @@ def jumpichiban_stock_message(event):
 
 async def stock_only_cycle(config, state, telegram, shop, name):
     from .polling import ServiceUnavailable, NetworkUnavailable, service_paused, record_503, recovered_503, record_network_error, recovered_network
+    def render(event, limit):
+        return jumpichiban_stock_message(event)
+    await deliver_stock(state, name, telegram, render, send_stock_email, Decimal('0'))
     if service_paused(state, name):
         return
     previous = state.get(name) or {}
@@ -64,20 +68,12 @@ async def stock_only_cycle(config, state, telegram, shop, name):
     if event:
         entry['stock_event'] = {key:entry[key] for key in ('name','price','currency','shop','url','stock_changed_at')}
         entry['stock_event']['previous_stock'] = 'OUT_OF_STOCK'
-        entry['notification_status'] = 'attempting'
-        entry['email_status'] = 'attempting'
+        entry['notification_pending'] = True
+        entry['email_notification_pending'] = True
     state.set(name,entry)
     logging.info('Jump Ichiban HTTP: %s | %s %s',stock,product.price,product.currency)
     if not event:
         return
-    message = jumpichiban_stock_message(entry)
-    try:
-        await telegram.send(message)
-        entry['notification_status'] = 'sent'
-    except Exception:
-        entry['notification_status'] = 'failed'
-        logging.error('Jump Ichiban: fallo de aviso Telegram; el monitor continúa')
-    # Sin comparar USD con los límites EUR de Nin-Nin.
-    entry['email_status'] = await send_stock_email(entry['stock_event'], product.price)
-    state.set(name,entry)
+    await deliver_stock(state, name, telegram, render, send_stock_email, product.price)
+    entry = state.get(name)
     logging.info('%s aviso evento=%s Telegram=%s email=%s', name, entry['stock_changed_at'], entry.get('notification_status'), entry.get('email_status'))

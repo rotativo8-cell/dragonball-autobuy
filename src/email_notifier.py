@@ -7,6 +7,7 @@ import ssl
 from decimal import Decimal
 from email.message import EmailMessage
 from .config import boolean
+from .notification_delivery import RetryableNotification
 
 
 def stock_email(event, max_product_price):
@@ -54,7 +55,12 @@ class EmailNotifier:
                 smtp.starttls(context=ssl.create_default_context())
                 smtp.ehlo()
                 smtp.login(self.user, self.password)
-                refused = smtp.send_message(message)
+                try:
+                    refused = smtp.send_message(message)
+                except smtplib.SMTPDataError as error:
+                    if 400 <= error.smtp_code < 500:
+                        raise RetryableNotification('SMTP rechazó temporalmente el mensaje') from None
+                    raise
                 if refused:
                     raise RuntimeError('Destinatario rechazado')
         await asyncio.wait_for(asyncio.to_thread(deliver), timeout=30)
@@ -69,6 +75,9 @@ async def send_stock_email(event, max_product_price):
         if result == 'sent':
             logging.info('Email SMTP: aviso de stock enviado')
         return result
+    except RetryableNotification:
+        logging.warning('Email SMTP: rechazo temporal explícito; reintento limitado pendiente')
+        return 'retryable'
     except Exception as error:
         # No imprimir respuesta SMTP, direcciones, contraseña ni configuración.
         logging.error('Email SMTP: envío fallido (%s); el monitor continúa, sin reintento del mismo evento', type(error).__name__)
