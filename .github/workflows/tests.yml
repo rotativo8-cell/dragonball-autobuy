@@ -21,3 +21,7 @@ jobs:
       - run: python -m playwright install --with-deps chromium
       - run: bash -n ops/install_server_check.sh
       - run: python -m unittest discover -s tests -v
+      - name: Build non-root monitor image
+        run: docker build -t monitor-ci .
+      - name: Test image offline without production state or secrets
+        run: docker run --rm --network none --entrypoint python --mount type=bind,source="${{ github.workspace }}/tests/container_smoke.py",target=/tmp/container_smoke.py,readonly monitor-ci /tmp/container_smoke.py

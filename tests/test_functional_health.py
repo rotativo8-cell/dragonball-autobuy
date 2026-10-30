@@ -32,6 +32,11 @@ class FunctionalHealthTests(unittest.TestCase):
         self.assertEqual(inspect_shops({}, ['ninnin'], now=1000, started_at=50)['ninnin'], 'never_checked')
         self.assertEqual(inspect_shops({'ninnin': {'checked_at': stamp(99999)}}, ['ninnin'], now=1000)['ninnin'], 'never_checked')
 
+    def test_long_retry_after_does_not_hide_hours_without_valid_stock(self):
+        values = {'jumpichiban': {'checked_at': stamp(1000), 'next_check_at': 90000}}
+        self.assertEqual(inspect_shops(values, ['jumpichiban'], now=2000)['jumpichiban'], 'waiting')
+        self.assertEqual(inspect_shops(values, ['jumpichiban'], now=5000)['jumpichiban'], 'stale')
+
     def test_failed_delivery_is_not_healthy(self):
         for status in ('failed', 'uncertain', 'exhausted', 'attempting'):
             with self.subTest(status=status):

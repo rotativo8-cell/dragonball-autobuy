@@ -7,7 +7,7 @@ una entrega fallida/incierta deja el contenedor `unhealthy`. Esto no reinicia el
 contenedor automáticamente: conectar ese estado a la supervisión externa.
 
 Las pausas programadas por límites HTTP y fallos temporales se respetan con 90
-segundos de margen. Una pausa nunca oculta más de 24 horas sin datos. El primer
+segundos de margen. Una pausa nunca oculta más de una hora sin datos. El primer
 arranque concede 15 minutos para una lectura válida. Una tienda suspendida sigue
 requiriendo revisión manual; no se levantan bloqueos ni se modifica la política
 de consultas a las tiendas.
@@ -34,5 +34,11 @@ criterio agotado → disponible. La generación de stock no autoriza compras rea
 5. Verificar en Kuma que `unhealthy` produce un aviso visible; una comprobación
    únicamente del proceso o del host no detecta el fallo funcional.
 
-La ejecución sin root del contenedor queda para una prueba específica de permisos
-de volúmenes y Chromium. No se cambia USER sin comprobar esos requisitos.
+La imagen ejecuta el monitor con UID/GID 1000. La CI prueba escritura de los tres
+directorios de runtime, bloqueo de instancia y Chromium sin red ni secretos.
+Antes de actualizar una instalación existente, respaldar sus datos y comprobar
+que únicamente los directorios montados de data, screenshots y logs permiten
+lectura/escritura a UID1000. No cambiar recursivamente el propietario del proyecto
+completo ni dar permisos globales. El código de la imagen permanece de solo lectura
+para el usuario del monitor. Un estado stale durante Retry-After necesita un aviso,
+no un reinicio ni consultas forzadas a la tienda.
