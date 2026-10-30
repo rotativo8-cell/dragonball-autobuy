@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 from .email_notifier import send_stock_email
 from .stock_alerts import ninnin_stock_message
 from .shops.base import CriticalError, check_product, check_cart_preview
+from .notification_delivery import deliver_stock
 
 
 def now():
@@ -13,6 +14,8 @@ def now():
 async def hybrid_cycle(config, state, telegram, shop, get_page, name):
     from .shops.ninnin import URL, PlaywrightBlocked
     from .polling import ServiceUnavailable, NetworkUnavailable, service_paused, record_503, recovered_503, record_network_error, recovered_network
+    limit = config.product_limit if config is not None else None
+    await deliver_stock(state, name, telegram, ninnin_stock_message, send_stock_email, limit)
     if service_paused(state, name):
         return
     try:
@@ -48,33 +51,8 @@ async def hybrid_cycle(config, state, telegram, shop, get_page, name):
         logging.info('Nin-Nin HTTP: OUT_OF_STOCK | %s %s', product.price, product.currency)
         return
     logging.info('Nin-Nin HTTP: IN_STOCK | %s %s', product.price, product.currency)
-    try:
-        if entry.get('notification_pending'):
-            entry['notification_pending'] = False
-            entry['notification_status'] = 'attempting'
-            state.set(name, entry)
-            event = entry['stock_event']
-            if event.get('previous_stock') == 'OUT_OF_STOCK':
-                try:
-                    await telegram.send(ninnin_stock_message(event, config.product_limit))
-                    entry['notification_status'] = 'sent'
-                except Exception:
-                    entry['notification_status'] = 'failed'
-                    logging.error('Nin-Nin: fallo de aviso Telegram; el monitor continúa')
-            entry['notification_pending'] = False
-            state.set(name, entry)
-    finally:
-        if entry.get('email_notification_pending'):
-            # Reservar antes de SMTP: no duplicar después de caída o resultado incierto.
-            entry['email_notification_pending'] = False
-            entry['email_status'] = 'attempting'
-            state.set(name, entry)
-            event = entry['stock_event']
-            if event.get('previous_stock') == 'OUT_OF_STOCK':
-                entry['email_status'] = await send_stock_email(event, config.product_limit)
-            else:
-                entry['email_status'] = 'skipped'
-            state.set(name, entry)
+    await deliver_stock(state, name, telegram, ninnin_stock_message, send_stock_email, limit)
+    entry = dict(state.get(name) or {})
     if entry.get('stock_changed_at') != previous.get('stock_changed_at') and product.available and previous.get('stock') == 'OUT_OF_STOCK':
         logging.info('%s aviso evento=%s Telegram=%s email=%s', name, entry['stock_changed_at'], entry.get('notification_status'), entry.get('email_status'))
     if os.getenv('MONITOR_ONLY', 'false').lower() == 'true':

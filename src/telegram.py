@@ -2,6 +2,8 @@ import asyncio
 import json
 import logging
 from urllib.request import Request, urlopen
+from urllib.error import HTTPError
+from .notification_delivery import RetryableNotification
 
 
 class Telegram:
@@ -15,7 +17,7 @@ class Telegram:
     async def send(self, message):
         if not self.token:
             logging.warning('Telegram desactivado: %s', message)
-            return
+            return 'disabled'
         def deliver():
             request = Request(f'https://api.telegram.org/bot{self.token}/sendMessage',
                               data=json.dumps({'chat_id': self.chat, 'text': message}).encode(),
@@ -23,8 +25,23 @@ class Telegram:
             # No incluir excepciones HTTP con el token en los logs.
             try:
                 with urlopen(request, timeout=15) as response:
-                    if not json.load(response).get('ok'):
+                    payload = json.load(response)
+                    if not payload.get('ok'):
+                        if payload.get('error_code') == 429:
+                            raise RetryableNotification('Telegram rechazó temporalmente el envío', (payload.get('parameters') or {}).get('retry_after', 0))
                         raise RuntimeError()
+            except RetryableNotification:
+                raise
+            except HTTPError as error:
+                if error.code == 429:
+                    retry_after = error.headers.get('Retry-After', 0) if error.headers else 0
+                    try:
+                        payload = json.load(error)
+                        retry_after = (payload.get('parameters') or {}).get('retry_after', retry_after)
+                    except (ValueError, TypeError, AttributeError):
+                        pass
+                    raise RetryableNotification('Telegram rechazó temporalmente el envío', retry_after) from None
+                raise RuntimeError('No se pudo enviar la notificación Telegram') from None
             except Exception:
                 raise RuntimeError('No se pudo enviar la notificación Telegram') from None
         await asyncio.to_thread(deliver)

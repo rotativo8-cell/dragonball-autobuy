@@ -107,6 +107,7 @@ async def run(config, once=False):
         except BlockingIOError:
             logging.error('Ya hay un monitor usando este directorio de datos')
             return
+        (config.data / 'started_at').write_text(str(time.time()))
         telegram = Telegram(config)
         if (config.data / 'critical.json').exists():
             logging.error('Parada crítica guardada: resolver la causa y retirar critical.json para reanudar')
