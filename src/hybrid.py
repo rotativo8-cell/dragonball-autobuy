@@ -14,7 +14,7 @@ def now():
 async def hybrid_cycle(config, state, telegram, shop, get_page, name):
     from .shops.ninnin import URL, PlaywrightBlocked
     from .polling import ServiceUnavailable, NetworkUnavailable, service_paused, record_503, recovered_503, record_network_error, recovered_network
-    limit = config.product_limit if config is not None else None
+    limit = getattr(config, 'product_limit', None)
     await deliver_stock(state, name, telegram, ninnin_stock_message, send_stock_email, limit)
     if service_paused(state, name):
         return
