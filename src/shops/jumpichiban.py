@@ -34,8 +34,15 @@ def download_html():
                     raise CriticalError('Jump Ichiban HTTP: respuesta demasiado grande')
                 chunks.append(chunk)
             return b''.join(chunks).decode(response.encoding or 'utf-8')
-    except (requests.RequestException, UnicodeError):
-        raise CriticalError('Jump Ichiban HTTP: fallo de conexión/TLS/codificación; no reintentar ni cambiar validación') from None
+    except requests.exceptions.SSLError:
+        raise CriticalError('Jump Ichiban HTTP: validación/conexión TLS fallida (SSLError); detener sin cambiar validación ni reintentar') from None
+    except (requests.Timeout, requests.ConnectionError) as error:
+        from ..polling import NetworkUnavailable
+        raise NetworkUnavailable(type(error).__name__) from None
+    except requests.RequestException as error:
+        raise CriticalError(f'Jump Ichiban HTTP: fallo HTTP ({type(error).__name__}); detener sin bypass') from None
+    except UnicodeError:
+        raise CriticalError('Jump Ichiban HTTP: codificación de HTML inválida') from None
 
 
 def inspect_html(html):
